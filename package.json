@@ -1,0 +1,52 @@
+{
+  "name": "@quirna/sdk",
+  "version": "0.1.0",
+  "description": "Human approval for anything your code is about to do. Official Quirna client.",
+  "license": "MIT",
+  "homepage": "https://quirna.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quirna/quirna-js.git"
+  },
+  "keywords": [
+    "approval",
+    "human-in-the-loop",
+    "authorization",
+    "agents",
+    "quirna"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "src/index.ts",
+    "src/types.ts",
+    "LICENSE"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "react-native": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build ./src/index.ts --outdir dist --target node --format esm && tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bugs": {
+    "url": "https://github.com/quirna/quirna-js/issues"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  // Declaration-only pass for the published package. The root tsconfig is
+  // `noEmit` and typechecks the whole workspace against Bun's types; this one
+  // exists solely to turn src/*.ts into dist/*.d.ts for consumers, so it must
+  // not assume Bun, and must not pull in anything outside this package.
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts", "src/types.ts"]
+}
