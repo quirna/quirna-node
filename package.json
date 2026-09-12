@@ -6,7 +6,7 @@
   "homepage": "https://quirna.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/quirna/quirna-js.git"
+    "url": "git+https://github.com/quirna/quirna-node.git"
   },
   "keywords": [
     "approval",
@@ -47,6 +47,6 @@
     "node": ">=20"
   },
   "bugs": {
-    "url": "https://github.com/quirna/quirna-js/issues"
+    "url": "https://github.com/quirna/quirna-node/issues"
   }
 }
