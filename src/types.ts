@@ -135,3 +135,101 @@ export type Jwk = {
   /** Which key in the set this is. The spec'd type omits it; a JWKS needs it. */
   kid?: string;
 };
+
+/* ------------------------------------------------------ evidence export */
+
+/**
+ * The evidence export (ADR-0017): JSON Lines, one object per line, in this
+ * order — a `header`, then each approval followed by its decisions and audit
+ * events, then org-level audit events, then a `manifest` as the last line.
+ *
+ * The manifest's `signed_payload` is canonical JSON carrying a SHA-256 over
+ * the exact bytes of every line before it (each line plus its `\n`), so it
+ * proves both that no line was edited and that none was added, removed or
+ * reordered. Decisions carry their own signature from the moment they were
+ * written (ADR-0016). On plans without signed export, `signature` and `kid`
+ * are `null` everywhere and the file proves nothing to a third party.
+ */
+export const EXPORT_FORMAT = "quirna.export";
+export const EXPORT_VERSION = 1;
+
+export type ExportHeaderLine = {
+  type: "header";
+  format: typeof EXPORT_FORMAT;
+  v: typeof EXPORT_VERSION;
+  org_id: string;
+  org_name: string;
+  /** Inclusive. Approvals are selected by `created_at` in [from, to). */
+  from: string;
+  /** Exclusive. */
+  to: string;
+  generated_at: string;
+  signed: boolean;
+};
+
+export type ExportApproval = {
+  id: string;
+  kind: string;
+  identifiers: Identifiers;
+  message: string;
+  requester_id: string;
+  requester_name: string;
+  environment: string;
+  tier: string;
+  status: ApprovalStatus;
+  auto_approved: boolean;
+  policy: { name: string; paths: PolicyPath[] };
+  created_at: string;
+  timeout_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+};
+
+export type ExportApprovalLine = { type: "approval"; approval: ExportApproval };
+
+export type ExportDecisionLine = {
+  type: "decision";
+  decision_id: string;
+  approval_id: string;
+  /** Canonical JSON exactly as signed at decide time. `null` only for decisions older than signing. */
+  signed_payload: string | null;
+  signature: string | null;
+  kid: string | null;
+};
+
+export type ExportAuditEventLine = {
+  type: "audit_event";
+  id: string;
+  approval_id: string | null;
+  event: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ExportManifest = {
+  type: "quirna.export.manifest";
+  v: typeof EXPORT_VERSION;
+  org_id: string;
+  from: string;
+  to: string;
+  generated_at: string;
+  /** Lines before the manifest, header included. */
+  lines: number;
+  /** Hex SHA-256 over the UTF-8 bytes of every line before the manifest, each followed by `\n`. */
+  sha256: string;
+  counts: { approvals: number; decisions: number; audit_events: number };
+};
+
+export type ExportManifestLine = {
+  type: "manifest";
+  signed_payload: string;
+  signature: string | null;
+  kid: string | null;
+};
+
+export type ExportLine =
+  | ExportHeaderLine
+  | ExportApprovalLine
+  | ExportDecisionLine
+  | ExportAuditEventLine
+  | ExportManifestLine;

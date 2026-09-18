@@ -142,6 +142,19 @@ you.
 Callbacks can be delivered more than once. `event_id` is stable per decision —
 use it to make your handler idempotent.
 
+**If your endpoint is down, Quirna keeps trying.** A non-2xx answer, a network
+error, or an attempt that hangs longer than 10 seconds counts as a failure and
+is retried with growing backoff — 30s, 2m, 10m, 30m, 1h, 2h — seven attempts
+over roughly 3h45m. That rides out a deploy or a short outage on your side; a
+decision is not lost because your service restarted. Answer `2xx` as soon as
+you have stored the event and do the slow work afterwards, or a handler that
+takes its time will be counted as failed and delivered again.
+
+After the last attempt the callback is given up on, and **Quirna will not tell
+you that it happened** — the org's audit log is the record. So if you must be
+certain, treat the webhook as the fast path and reconcile with
+`approvals.get(id)` for anything you never heard back about.
+
 ## Handling the other outcomes
 
 `status` is not a boolean. A request can come back `rejected` (someone said
@@ -162,6 +175,31 @@ if (decision.status === "approved") {
 `decision.auto_approved` is `true` when a Policy's condition did not match and
 no human was asked — the request was below the threshold that needs one.
 
+## Verifying an evidence export
+
+An org on Team can download its approvals, decisions and audit events from the
+Console as a signed JSON Lines file. `verifyExport` is what an auditor runs on
+that file. It needs no API key, only the file and Quirna's public keys:
+
+```ts
+import { readFile } from "node:fs/promises";
+import { verifyExport } from "@quirna/sdk";
+
+const file = await readFile("quirna-evidence-2026-01-01-to-2026-12-31.jsonl", "utf8");
+const evidence = await verifyExport(file); // throws QuirnaError if anything is off
+
+console.log(evidence.header.org_name, evidence.manifest.counts);
+```
+
+It checks that the manifest's SHA-256 covers every line before it, so no line
+was edited, added, removed or reordered. It checks the manifest's signature,
+then each decision's own signature, which was made when the decision was
+recorded. An export from a plan without signing fails with `unsigned_export`.
+
+A valid export proves the records were not changed after Quirna produced them.
+It does not prove Quirna could not have produced something false: Quirna holds
+the signing key.
+
 ## Configuration
 
 ```ts
@@ -179,6 +217,7 @@ An empty `apiKey` throws at construction.
 | `approvals.wait(id, options?)` | Poll until it leaves `pending` |
 | `approvals.require(input, options?)` | `create` + `wait` |
 | `verifyCallback(rawBody, headers, jwksOrUrl?)` | Verify a signed callback |
+| `verifyExport(jsonl, jwksOrUrl?)` | Verify a signed evidence export |
 | `fetchJwks(baseUrl?)` | Fetch the signing key set |
 
 Every failure throws a `QuirnaError` with an HTTP `status` and a stable `code`:
@@ -197,7 +236,9 @@ try {
 ```
 
 Codes include `wait_timeout`, `request_timeout`, `missing_api_key`,
-`bad_signature`, `timestamp_skew`, `unknown_key`, `missing_signature`. On a
+`bad_signature`, `timestamp_skew`, `unknown_key`, `missing_signature`, and for
+exports `malformed_export`, `manifest_mismatch`, `unsigned_export`,
+`unsigned_decision`, `decision_mismatch`. On a
 429, `err.retryAfterSeconds` carries what the server asked for.
 
 ## Reliability

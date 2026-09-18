@@ -1,6 +1,14 @@
 import {
   type Approval,
   type CreateApprovalInput,
+  EXPORT_FORMAT,
+  EXPORT_VERSION,
+  type ExportApproval,
+  type ExportAuditEventLine,
+  type ExportDecisionLine,
+  type ExportHeaderLine,
+  type ExportLine,
+  type ExportManifest,
   type Jwk,
   TIMESTAMP_SKEW_MS,
   WEBHOOK_HEADERS,
@@ -392,11 +400,147 @@ export async function verifyCallback(
   return body;
 }
 
+export type VerifiedExport = {
+  header: ExportHeaderLine;
+  manifest: ExportManifest;
+  approvals: ExportApproval[];
+  decisions: ExportDecisionLine[];
+  auditEvents: ExportAuditEventLine[];
+};
+
+function exportError(message: string, code: string): QuirnaError {
+  return new QuirnaError(message, 422, code);
+}
+
+async function sha256HexOf(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Verify a signed evidence export (JSON Lines, ADR-0017) and return its
+ * contents, or throw a `QuirnaError` saying what failed.
+ *
+ * Checks, in order: the file is well-formed; the manifest's SHA-256 matches
+ * every byte before it (nothing edited, added, dropped or reordered); the
+ * manifest's signature verifies; every decision's own signature verifies and
+ * its payload names the decision and approval it sits under. An export from
+ * a plan without signed export fails with `unsigned_export` — it is not
+ * evidence, and a verifier that quietly passed it would say otherwise.
+ *
+ * `jwksOrUrl` works as in `verifyCallback`. Needs only WebCrypto, so it runs
+ * wherever an auditor has Node 20+, Bun, Deno or a browser.
+ */
+export async function verifyExport(
+  jsonl: string,
+  jwksOrUrl?: Jwks | string,
+): Promise<VerifiedExport> {
+  const text = jsonl.endsWith("\n") ? jsonl : `${jsonl}\n`;
+  const rawLines = text.slice(0, -1).split("\n");
+  if (rawLines.length < 2)
+    throw exportError("export has no header or manifest", "malformed_export");
+
+  let lines: ExportLine[];
+  try {
+    lines = rawLines.map((line) => JSON.parse(line) as ExportLine);
+  } catch {
+    throw exportError("export contains a line that is not JSON", "malformed_export");
+  }
+  const header = lines[0];
+  const last = lines[lines.length - 1];
+  if (header?.type !== "header" || header.format !== EXPORT_FORMAT) {
+    throw exportError("first line is not a quirna.export header", "malformed_export");
+  }
+  if (header.v !== EXPORT_VERSION) {
+    throw exportError(`unsupported export version ${header.v}`, "unsupported_version");
+  }
+  if (last?.type !== "manifest") {
+    throw exportError("last line is not a manifest", "malformed_export");
+  }
+
+  let manifest: ExportManifest;
+  try {
+    manifest = JSON.parse(last.signed_payload) as ExportManifest;
+  } catch {
+    throw exportError("manifest payload is not JSON", "malformed_export");
+  }
+  const body = text.slice(0, text.length - rawLines[rawLines.length - 1]!.length - 1);
+  const digest = await sha256HexOf(new TextEncoder().encode(body));
+  if (
+    manifest.sha256 !== digest ||
+    manifest.lines !== lines.length - 1 ||
+    manifest.org_id !== header.org_id ||
+    manifest.from !== header.from ||
+    manifest.to !== header.to
+  ) {
+    throw exportError("export does not match its manifest", "manifest_mismatch");
+  }
+  if (!last.signature || !last.kid) {
+    throw exportError("export is not signed", "unsigned_export");
+  }
+
+  const decisions = lines.filter((l): l is ExportDecisionLine => l.type === "decision");
+  // One-shot verification: fetch the set once rather than through the
+  // callback cache, and let a missing kid fail below as unknown_key.
+  const jwks = typeof jwksOrUrl === "object" ? jwksOrUrl : await fetchJwks(jwksOrUrl);
+  const keys = new Map<string, CryptoKey>();
+  const verify = async (kid: string, signature: string, payload: string): Promise<boolean> => {
+    let key = keys.get(kid);
+    if (!key) {
+      const jwk = jwks.keys.find((k) => k.kid === kid);
+      if (!jwk) throw exportError(`unknown signing key ${kid}`, "unknown_key");
+      key = await crypto.subtle.importKey("jwk", jwk, "Ed25519", false, ["verify"]);
+      keys.set(kid, key);
+    }
+    return crypto.subtle.verify(
+      "Ed25519",
+      key,
+      base64UrlToBytes(signature),
+      new TextEncoder().encode(payload),
+    );
+  };
+
+  if (!(await verify(last.kid, last.signature, last.signed_payload))) {
+    throw exportError("manifest signature is invalid", "bad_signature");
+  }
+  for (const d of decisions) {
+    if (!d.signed_payload || !d.signature || !d.kid) {
+      throw exportError(`decision ${d.decision_id} is not signed`, "unsigned_decision");
+    }
+    if (!(await verify(d.kid, d.signature, d.signed_payload))) {
+      throw exportError(`decision ${d.decision_id} signature is invalid`, "bad_signature");
+    }
+    const payload = JSON.parse(d.signed_payload) as { decision_id?: string; approval_id?: string };
+    if (payload.decision_id !== d.decision_id || payload.approval_id !== d.approval_id) {
+      throw exportError(
+        `decision ${d.decision_id} payload names another record`,
+        "decision_mismatch",
+      );
+    }
+  }
+
+  return {
+    header,
+    manifest,
+    approvals: lines.flatMap((l) => (l.type === "approval" ? [l.approval] : [])),
+    decisions,
+    auditEvents: lines.filter((l): l is ExportAuditEventLine => l.type === "audit_event"),
+  };
+}
+
 export type {
   Approval,
   ApprovalStatus,
   CreateApprovalInput,
   DecisionValue,
+  ExportApproval,
+  ExportApprovalLine,
+  ExportAuditEventLine,
+  ExportDecisionLine,
+  ExportHeaderLine,
+  ExportLine,
+  ExportManifest,
+  ExportManifestLine,
   Identifiers,
   Jwk,
   PolicyPath,
@@ -411,6 +555,8 @@ export type {
 export {
   APPROVAL_STATUSES,
   DECISIONS,
+  EXPORT_FORMAT,
+  EXPORT_VERSION,
   TIERS,
   TIMESTAMP_SKEW_MS,
   WEBHOOK_HEADERS,

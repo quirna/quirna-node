@@ -37,7 +37,7 @@
     }
   },
   "scripts": {
-    "build": "rm -rf dist && bun build ./src/index.ts --outdir dist --target node --format esm && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && bun build ./src/index.ts --outdir dist --target node --format esm && tsc -p tsconfig.build.json && bun scripts/fix-dts-extensions.ts",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
