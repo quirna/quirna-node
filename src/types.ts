@@ -86,7 +86,7 @@ export type CreateApprovalInput = {
   callback_url?: string;
 };
 
-/** The body Quirna POSTs to a `callback_url` once a request is decided. */
+/** The body Quirna POSTs to a `callback_url` once a request is terminal. */
 export type WebhookBody = {
   approval_id: string;
   kind: string;
@@ -95,7 +95,20 @@ export type WebhookBody = {
   requester_id: string;
   environment: string | null;
   tier: Tier;
+  /**
+   * Go or no-go, and nothing else: every terminal state that is not
+   * `approved` arrives as `rejected`, so a handler that branches on this
+   * fails closed. Branch on it to decide whether to act.
+   */
   decision: DecisionValue;
+  /**
+   * Why, in the same vocabulary the polled Approval uses — `approved`,
+   * `rejected`, `timed_out` or `cancelled`. `decision` collapses the last
+   * three into `rejected`, which is safe but cannot tell a human saying no
+   * from nobody answering; this field can. Never `pending`: a callback is
+   * only sent once the request is terminal.
+   */
+  status: Exclude<ApprovalStatus, "pending">;
   decided_by: string | null;
   decided_at: string;
   event_id: string;

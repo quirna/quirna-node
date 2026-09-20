@@ -1,6 +1,6 @@
 {
   "name": "@quirna/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Human approval for anything your code is about to do. Official Quirna client.",
   "license": "MIT",
   "homepage": "https://quirna.com",
@@ -24,6 +24,7 @@
     "dist",
     "src/index.ts",
     "src/types.ts",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "main": "./dist/index.js",

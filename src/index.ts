@@ -57,7 +57,7 @@ export class QuirnaError extends Error {
 }
 
 /** Kept in step with package.json by a test; sent as the User-Agent. */
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 /**
  * Statuses worth trying again: a timeout, a rate limit, or a server/gateway

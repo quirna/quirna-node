@@ -5,8 +5,8 @@ Human approval for anything your code is about to do. Official client for the
 
 Your code asks for permission before it does something consequential — a
 refund, a withdrawal, a production deploy, a destructive migration. A named
-human approves it on a device Quirna can attest. The decision comes back
-signed, and every request keeps an audit trail.
+human approves it on their enrolled phone, with Face ID. The decision comes
+back signed, and every request keeps an audit trail.
 
 - **Site** — [quirna.com](https://quirna.com)
 - **Console** — [console.quirna.com](https://console.quirna.com) (policies,
@@ -138,6 +138,22 @@ timestamp more than five minutes from your clock, and confirms the body's own
 `event_id` matches the signed header. The key set is cached and refetched only
 when a key id turns up that it has not seen, so key rotation needs nothing from
 you.
+
+The body carries two fields about the answer, and they are not the same
+question. `decision` is go or no-go: everything that is not an approval — a
+rejection, a timeout, a cancellation — arrives as `rejected`, so a handler
+that branches on it fails closed. `status` says which one it was, in the same
+words the polled Approval uses: `approved`, `rejected`, `timed_out` or
+`cancelled`. Branch on `decision` to decide whether to act; read `status` when
+you want to tell a person who said no from nobody answering.
+
+```ts
+if (body.decision === "approved") {
+  await deploy(body.identifiers.sha);
+} else if (body.status === "timed_out") {
+  await nudge("nobody answered before the window closed");
+}
+```
 
 Callbacks can be delivered more than once. `event_id` is stable per decision —
 use it to make your handler idempotent.

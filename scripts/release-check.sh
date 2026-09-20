@@ -23,6 +23,13 @@ if ! grep -q "export const VERSION = \"$version\";" src/index.ts; then
   exit 1
 fi
 
+# A release nobody wrote down is a release nobody can read. The heading must
+# exist before the tag does, because after the tag it never gets written.
+if ! grep -q "^## \\[$version\\]" CHANGELOG.md; then
+  echo "::error::CHANGELOG.md has no '## [$version]' section; add one before releasing"
+  exit 1
+fi
+
 bun test src
 bun run build
 
