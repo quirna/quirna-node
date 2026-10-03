@@ -12,6 +12,9 @@ back signed, and every request keeps an audit trail.
 - **Console** — [console.quirna.com](https://console.quirna.com) (policies,
   approver groups, activity, API keys)
 - **API** — `https://api.quirna.com`
+- **Examples** — [`examples/`](https://github.com/quirna/quirna-node/tree/main/examples),
+  two complete programs you can run: wait for a decision, or receive it as a
+  webhook
 
 ## Install
 
@@ -50,7 +53,9 @@ a cron job, or an agent acting on someone's behalf.
 away; Quirna POSTs the decision to a URL you host. Use it when something is
 waiting on the other end — an HTTP request, a user staring at a spinner.
 
-Both examples below are complete: copy one and fill in your own values.
+Both examples below are complete: copy one and fill in your own values. For
+versions you can run as they are, see
+[`examples/`](https://github.com/quirna/quirna-node/tree/main/examples).
 
 ### 1. Wait for the decision
 

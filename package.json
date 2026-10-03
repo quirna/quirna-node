@@ -1,6 +1,6 @@
 {
   "name": "@quirna/sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Human approval for anything your code is about to do. Official Quirna client.",
   "license": "MIT",
   "homepage": "https://quirna.com",

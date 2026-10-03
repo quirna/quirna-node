@@ -9,6 +9,20 @@ Releases are cut with the *SDK* workflow — see
 [ADR-0020](../../docs/adr/0020-sdk-release.md). Every entry here should be
 readable by someone who has our package installed and none of our context.
 
+## [0.2.1] — 2026-10-03
+
+Documentation only: the code is the same as 0.2.0.
+
+### Added
+
+- **Runnable examples** in
+  [`examples/`](https://github.com/quirna/quirna-node/tree/main/examples) on
+  GitHub. `wait.ts` asks before a refund, waits for the answer and refunds
+  only on a yes. `webhook.ts` answers `202` right away and verifies the signed
+  callback when the decision arrives. Both import nothing but `@quirna/sdk`.
+  Their README covers the Console setup and every variable they read. They
+  live in the repository, not in the installed package.
+
 ## [0.2.0] — 2026-09-20
 
 ### Added
